@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-family: Courier New, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>My Simple Action</h1>
+    <h1 id="emoji">🎯</h1>
+    <h2 id="currentUrl"></h2>
+    <h3>Interval (in ms):</h3>
+    <input
+        id="interval"
+        type="text"
+        placeholder="Interval in ms"
+        style="margin: 10px"
+      />
+    <h3>Urls starting with http(s):</h3>
+    <div id="options">
+      <input
+        id="add-custom-option"
+        type="text"
+        placeholder="Add an url"
+        style="margin: 10px"
+      />
+    </div>
+
+    <script>
+      const options = document.querySelector("#options");
+      const addCustomOptionButton =
+        document.querySelector("#add-custom-option");
+      const currentUrlText = document.getElementById("currentUrl");
+      const emoji = document.getElementById("emoji");
+      const intervalInput = document.querySelector("#interval");
+      var urls, interval, newTab;
+      init();
+
+      function onlyUnique(value, index, array) {
+        return array.indexOf(value) === index;
+      }
+
+      function getOptions(checked = false) {
+        if (checked)
+          return Array.from(
+            options.querySelectorAll('input[type="checkbox"]:checked')
+          );
+        return Array.from(options.querySelectorAll('input[type="checkbox"]'));
+      }
+
+      function getOptionValues(checked = false) {
+        return getOptions(checked).map((option) => option.value);
+      }
+
+      function getOptionsFromUrl(selected = false) {
+        const paramName = selected ? "selectedUrls" : "urls";
+        const url = new URL(window.location.href);
+        const urlParams = new URLSearchParams(url.search);
+        if (urlParams.has(paramName) && urlParams.get(paramName).length > 0) {
+          return urlParams
+            .get(paramName)
+            .split(",")
+            .filter(onlyUnique)
+            .filter(isValidURL);
+        }
+        return [];
+      }
+
+      function getIntervalFromUrl(){
+        const url = new URL(window.location.href);
+        const urlParams = new URLSearchParams(url.search);
+        if (urlParams.has("interval") && urlParams.get("interval").length > 0) {
+          return urlParams.get("interval");
+        }
+        return 3000;
+      }
+
+      function callURL(url) {
+        if (urls.length === 0) {
+          currentUrlText.innerText = "No urls selected";
+          setTimeout(callURL, 1000, url);
+        } else if (!newTab || newTab.closed) {
+          newTab = window.open(url, "msaChildTab");
+          if (!newTab) {
+            currentUrlText.innerText =
+              "Popup blocked. Please enable popups for this website.";
+            emoji.innerText = "❌";
+          }
+          setTimeout(callURL, 1000, url);
+        } else {
+          emoji.innerText = "🎯";
+          const currentUrlIndex = urls.indexOf(url);
+          const newUrl = urls[(currentUrlIndex + 1) % urls.length];
+          currentUrlText.innerText = newUrl;
+          newTab.location = newUrl;
+          setTimeout(callURL, interval, newUrl);
+        }
+      }
+
+      function isValidURL(url) {
+        const urlPattern = /^(https?|ftp)?:\/\/[^\s/$.?#].[^\s]*$/i;
+        return urlPattern.test(url);
+      }
+
+      function init() {
+        const urlSelectedOptions = getOptionsFromUrl(true);
+        const urlOptions = getOptionsFromUrl()
+          .concat(urlSelectedOptions)
+          .filter(onlyUnique);
+
+        urlOptions.forEach((value) => {
+          const optionFromUrl = createOption(
+            value,
+            urlSelectedOptions.includes(value)
+          );
+        });
+
+        urls = urlSelectedOptions;
+        interval = getIntervalFromUrl();
+        intervalInput.value = interval;
+
+        updateURLParams();
+
+        callURL(urls[0]);
+      }
+
+      function createOption(value, checked = false) {
+        const customOption = document.createElement("div");
+        customOption.className = "option";
+        customOption.innerHTML = `
+            <input type="checkbox" ${checked ? "checked" : ""} value="${value}">
+            <label>${value}</label>
+        `;
+        return options.insertBefore(customOption, options.lastChild);
+      }
+
+      function updateURLParams() {
+        const optionValues = getOptionValues();
+        const selectedOptionValues = getOptionValues(true);
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set("interval", intervalInput.value);
+        urlParams.set("urls", optionValues.join(","));
+        urlParams.set("selectedUrls", selectedOptionValues.join(","));
+        history.replaceState(
+          null,
+          "",
+          window.location.pathname + "?" + urlParams.toString()
+        );
+        urls = selectedOptionValues;
+      }
+
+      options.addEventListener("click", (event) => {
+        if (event.target && event.target.tagName === "INPUT") {
+          updateURLParams();
+        }
+      });
+
+      intervalInput.addEventListener("change", (event) => {
+        if (event.target && event.target.tagName === "INPUT") {
+          interval = event.target.value;
+          updateURLParams();
+        }
+      });
+
+      addCustomOptionButton.addEventListener("keydown", (event) => {
+        if (
+          event.key === "Enter" &&
+          addCustomOptionButton.value.trim() !== ""
+        ) {
+          const _optionValues = getOptionValues();
+          if (_optionValues.includes(addCustomOptionButton.value)) {
+            alert("Url already exists");
+            return;
+          }
+          if (!isValidURL(addCustomOptionButton.value)) {
+            alert("Invalid URL, did you forget to add http(s):// ?");
+            return;
+          }
+          createOption(addCustomOptionButton.value, true);
+          updateURLParams();
+          addCustomOptionButton.value = "";
+        }
+      });
+    </script>
+  </body>
+</html>
