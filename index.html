@@ -15,13 +15,20 @@
     <h1>My Simple Action</h1>
     <h1 id="emoji">🎯</h1>
     <h2 id="currentUrl"></h2>
+    <h3>Number of tabs:</h3>
+    <input
+      id="nbTabs"
+      type="text"
+      placeholder="Number of tabs"
+      style="margin: 10px"
+    />
     <h3>Interval (in ms):</h3>
     <input
-        id="interval"
-        type="text"
-        placeholder="Interval in ms"
-        style="margin: 10px"
-      />
+      id="interval"
+      type="text"
+      placeholder="Interval in ms"
+      style="margin: 10px"
+    />
     <h3>Urls starting with http(s):</h3>
     <div id="options">
       <input
@@ -39,7 +46,12 @@
       const currentUrlText = document.getElementById("currentUrl");
       const emoji = document.getElementById("emoji");
       const intervalInput = document.querySelector("#interval");
-      var urls, interval, newTab;
+      const nbTabsInput = document.querySelector("#nbTabs");
+      var urls,
+        interval,
+        newTabs,
+        nbTabs = 0;
+      nbOpenedTabs = 0;
       init();
 
       function onlyUnique(value, index, array) {
@@ -72,33 +84,59 @@
         return [];
       }
 
-      function getIntervalFromUrl(){
+      function getValueFromUrl(value) {
         const url = new URL(window.location.href);
         const urlParams = new URLSearchParams(url.search);
-        if (urlParams.has("interval") && urlParams.get("interval").length > 0) {
-          return urlParams.get("interval");
+        if (urlParams.has(value) && urlParams.get(value).length > 0) {
+          return urlParams.get(value);
         }
-        return 3000;
+      }
+
+      function getNbTabFromUrl() {
+        return Math.max(getValueFromUrl("nbTabs") || 1, 1) ;
+      }
+
+      function getIntervalFromUrl() {
+        return getValueFromUrl("interval") || 3000;
+      }
+
+      function getNbClosedTabs() {
+        return newTabs
+          ? nbTabs - newTabs.filter((tab) => (tab ? !tab.closed : false)).length
+          : Math.max(nbTabs, 1);
+      }
+
+      function removeClosedTabs() {
+        newTabs = newTabs
+          ? newTabs.filter((tab) => (tab ? !tab.closed : false))
+          : [];
       }
 
       function callURL(url) {
         if (urls.length === 0) {
           currentUrlText.innerText = "No urls selected";
           setTimeout(callURL, 1000, url);
-        } else if (!newTab || newTab.closed) {
-          newTab = window.open(url, "msaChildTab");
-          if (!newTab) {
+        } else if (getNbClosedTabs() > 0) {
+          removeClosedTabs();
+          for (let i = 0; i < getNbClosedTabs(); i++) {
+            newTabs.push(window.open(url, "mysimpleactionTab_" + nbOpenedTabs));
+            nbOpenedTabs++;
+          }
+          if (getNbClosedTabs() > 0) {
             currentUrlText.innerText =
               "Popup blocked. Please enable popups for this website.";
             emoji.innerText = "❌";
+          } else {
+            emoji.innerText = "🎯";
           }
           setTimeout(callURL, 1000, url);
         } else {
-          emoji.innerText = "🎯";
           const currentUrlIndex = urls.indexOf(url);
           const newUrl = urls[(currentUrlIndex + 1) % urls.length];
           currentUrlText.innerText = newUrl;
-          newTab.location = newUrl;
+          for (let i = 0; i < newTabs.length; i++) {
+            newTabs[i].location = newUrl;
+          }
           setTimeout(callURL, interval, newUrl);
         }
       }
@@ -123,7 +161,9 @@
 
         urls = urlSelectedOptions;
         interval = getIntervalFromUrl();
+        nbTabs = getNbTabFromUrl();
         intervalInput.value = interval;
+        nbTabsInput.value = nbTabs;
 
         updateURLParams();
 
@@ -145,6 +185,7 @@
         const selectedOptionValues = getOptionValues(true);
         const urlParams = new URLSearchParams(window.location.search);
         urlParams.set("interval", intervalInput.value);
+        urlParams.set("nbTabs", nbTabsInput.value);
         urlParams.set("urls", optionValues.join(","));
         urlParams.set("selectedUrls", selectedOptionValues.join(","));
         history.replaceState(
@@ -164,6 +205,21 @@
       intervalInput.addEventListener("change", (event) => {
         if (event.target && event.target.tagName === "INPUT") {
           interval = event.target.value;
+          if (interval < 0) {
+            alert("Interval should be a positive number");
+            return;
+          }
+          updateURLParams();
+        }
+      });
+
+      nbTabsInput.addEventListener("change", (event) => {
+        if (event.target && event.target.tagName === "INPUT") {
+          nbTabs = event.target.value;
+          if (nbTabs < 0) {
+            alert("Number of tabs should be a positive number");
+            return;
+          }
           updateURLParams();
         }
       });
