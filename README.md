@@ -22,7 +22,7 @@ Welcome to the MySimpleAction repository! MySimpleAction is a simple web applica
 
 ## Getting Started
 
-The simplest thing is go to [https//mysimpleaction.com](https//mysimpleaction.com) 
+The simplest thing is go to [https://mysimpleaction.com](https://mysimpleaction.com) 
 
 But if you prefer to get started locally, follow these steps:
 
