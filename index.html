@@ -15,6 +15,7 @@
     <h1>My Simple Action</h1>
     <h1 id="emoji">🎯</h1>
     <h2 id="currentUrl"></h2>
+
     <h3>Number of tabs:</h3>
     <input
       id="nbTabs"
@@ -22,6 +23,7 @@
       placeholder="Number of tabs"
       style="margin: 10px"
     />
+
     <h3>Interval (in ms):</h3>
     <input
       id="interval"
@@ -29,10 +31,15 @@
       placeholder="Interval in ms"
       style="margin: 10px"
     />
+
     <h3>Urls starting with http(s):</h3>
+    <div id="dns-testing" style="margin: 10px">
+      <input type="checkbox" id="test-dns" name="test-dns" checked />
+      <label for="test-dns">DNS Testing</label>
+    </div>
     <div id="options">
       <input
-        id="add-custom-option"
+        id="add-option"
         type="text"
         placeholder="Add an url"
         style="margin: 10px"
@@ -40,22 +47,121 @@
     </div>
 
     <script>
+      // ________________________________________________________
+      //
+      //
+      //                          Initialization
+      //
+      // ________________________________________________________
+
       const options = document.querySelector("#options");
-      const addCustomOptionButton =
-        document.querySelector("#add-custom-option");
+      const addOptionButton = document.querySelector("#add-option");
       const currentUrlText = document.getElementById("currentUrl");
       const emoji = document.getElementById("emoji");
+      const testDnsInput = document.getElementById("test-dns");
       const intervalInput = document.querySelector("#interval");
       const nbTabsInput = document.querySelector("#nbTabs");
+
+      const maxSubdomainSize = 50;
+
       var urls,
         interval,
         newTabs,
-        nbTabs = 0;
-      nbOpenedTabs = 0;
+        nbTabs = 0,
+        nbOpenedTabs = 0;
+
       init();
 
-      function onlyUnique(value, index, array) {
-        return array.indexOf(value) === index;
+      // ________________________________________________________
+      //
+      //                          Initialization
+      //
+      // ________________________________________________________
+
+      function init() {
+        const urlSelectedOptions = getOptionsFromUrl(true);
+        const urlOptions = getOptionsFromUrl()
+          .concat(urlSelectedOptions)
+          .filter(onlyUnique);
+        urlOptions.forEach((value) => {
+          const optionFromUrl = createOption(
+            value,
+            urlSelectedOptions.includes(value)
+          );
+        });
+
+        urls = urlSelectedOptions;
+        testDnsInput.checked = getDnsTestFromUrl();
+        interval = getIntervalFromUrl();
+        intervalInput.value = interval;
+        nbTabs = getNbTabFromUrl();
+        nbTabsInput.value = nbTabs;
+
+        updateURLParams();
+
+        run(urls[0]);
+      }
+
+      // ________________________________________________________
+      //
+      //                          Run (main) function
+      //
+      // ________________________________________________________
+
+      function run(url) {
+        if (urls.length === 0) {
+          currentUrlText.innerText = "No urls selected";
+          setTimeout(run, 1000, url);
+        } else if (getNbClosedTabs() > 0) {
+          removeClosedTabs();
+
+          for (let i = 0; i < getNbClosedTabs(); i++) {
+            newTabs.push(window.open(url, "mysimpleactionTab_" + nbOpenedTabs));
+            nbOpenedTabs++;
+          }
+
+          if (getNbClosedTabs() > 0) {
+            currentUrlText.innerText =
+              "Popup blocked. Please enable popups for this website.";
+            emoji.innerText = "❌";
+          } else {
+            emoji.innerText = "🎯";
+          }
+
+          setTimeout(run, 1000, url);
+        } else {
+          const currentUrlIndex = urls.indexOf(url);
+          const newUrl = urls[(currentUrlIndex + 1) % urls.length];
+          currentUrlText.innerText = newUrl;
+
+          testDns(newUrl);
+
+          for (let i = 0; i < newTabs.length; i++) {
+            newTabs[i].location = url;
+          }
+
+          setTimeout(run, interval, newUrl);
+        }
+      }
+
+      // ________________________________________________________
+      //
+      //                          Project Utils
+      //
+      // ________________________________________________________
+
+      function testDns(url) {
+        const maxDnsTests = Math.floor(interval / 25);
+        const numberOfTests = 1 + Math.floor(Math.random() * (maxDnsTests - 1));
+        if (testDnsInput.checked) {
+          const randomUrls = [];
+          for (let i = 0; i < numberOfTests; i++) {
+            randomUrls.push(getRandomSubdomain(url));
+          }
+          Promise.all(
+            randomUrls.map((u) => fetch(u, { mode: "no-cors" }).catch(() => {}))
+          );
+        }
       }
 
       function getOptions(checked = false) {
@@ -84,20 +190,16 @@
         return [];
       }
 
-      function getValueFromUrl(value) {
-        const url = new URL(window.location.href);
-        const urlParams = new URLSearchParams(url.search);
-        if (urlParams.has(value) && urlParams.get(value).length > 0) {
-          return urlParams.get(value);
-        }
-      }
-
       function getNbTabFromUrl() {
-        return Math.max(getValueFromUrl("nbTabs") || 1, 1) ;
+        return Math.max(getValueFromUrl("nbTabs") || 1, 1);
       }
 
       function getIntervalFromUrl() {
-        return getValueFromUrl("interval") || 3000;
+        return getValueFromUrl("interval") || 2500;
+      }
+
+      function getDnsTestFromUrl() {
+        return getValueFromUrl("dnsTest") || true;
       }
 
       function getNbClosedTabs() {
@@ -110,64 +212,6 @@
         newTabs = newTabs
           ? newTabs.filter((tab) => (tab ? !tab.closed : false))
           : [];
-      }
-
-      function callURL(url) {
-        if (urls.length === 0) {
-          currentUrlText.innerText = "No urls selected";
-          setTimeout(callURL, 1000, url);
-        } else if (getNbClosedTabs() > 0) {
-          removeClosedTabs();
-          for (let i = 0; i < getNbClosedTabs(); i++) {
-            newTabs.push(window.open(url, "mysimpleactionTab_" + nbOpenedTabs));
-            nbOpenedTabs++;
-          }
-          if (getNbClosedTabs() > 0) {
-            currentUrlText.innerText =
-              "Popup blocked. Please enable popups for this website.";
-            emoji.innerText = "❌";
-          } else {
-            emoji.innerText = "🎯";
-          }
-          setTimeout(callURL, 1000, url);
-        } else {
-          const currentUrlIndex = urls.indexOf(url);
-          const newUrl = urls[(currentUrlIndex + 1) % urls.length];
-          currentUrlText.innerText = newUrl;
-          for (let i = 0; i < newTabs.length; i++) {
-            newTabs[i].location = newUrl;
-          }
-          setTimeout(callURL, interval, newUrl);
-        }
-      }
-
-      function isValidURL(url) {
-        const urlPattern = /^(https?|ftp)?:\/\/[^\s/$.?#].[^\s]*$/i;
-        return urlPattern.test(url);
-      }
-
-      function init() {
-        const urlSelectedOptions = getOptionsFromUrl(true);
-        const urlOptions = getOptionsFromUrl()
-          .concat(urlSelectedOptions)
-          .filter(onlyUnique);
-
-        urlOptions.forEach((value) => {
-          const optionFromUrl = createOption(
-            value,
-            urlSelectedOptions.includes(value)
-          );
-        });
-
-        urls = urlSelectedOptions;
-        interval = getIntervalFromUrl();
-        nbTabs = getNbTabFromUrl();
-        intervalInput.value = interval;
-        nbTabsInput.value = nbTabs;
-
-        updateURLParams();
-
-        callURL(urls[0]);
       }
 
       function createOption(value, checked = false) {
@@ -185,6 +229,7 @@
         const selectedOptionValues = getOptionValues(true);
         const urlParams = new URLSearchParams(window.location.search);
         urlParams.set("interval", intervalInput.value);
+        urlParams.set("dnsTest", testDnsInput.checked);
         urlParams.set("nbTabs", nbTabsInput.value);
         urlParams.set("urls", optionValues.join(","));
         urlParams.set("selectedUrls", selectedOptionValues.join(","));
@@ -196,6 +241,72 @@
         urls = selectedOptionValues;
       }
 
+      // ________________________________________________________
+      //
+      //                          Generic Utils
+      //
+      // ________________________________________________________
+
+      function onlyUnique(value, index, array) {
+        return array.indexOf(value) === index;
+      }
+
+      function isValidURL(url) {
+        const urlPattern = /^(https?|ftp)?:\/\/[^\s/$.?#].[^\s]*$/i;
+        return urlPattern.test(url);
+      }
+
+      function getProtocolAndUrl(url) {
+        const match = /^(https?|ftp):\/\/(.*)$/.exec(url);
+        if (match) {
+          const protocol = match[1];
+          const urlWithoutProtocol = match[2];
+          return { protocol, urlWithoutProtocol };
+        } else {
+          return { protocol: "", urlWithoutProtocol: url };
+        }
+      }
+
+      function getRandomDomainName(length) {
+        const characters = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let subdomain = "";
+        for (let i = 0; i < length; i++) {
+          const randomIndex = Math.floor(Math.random() * characters.length);
+          subdomain += characters[randomIndex];
+        }
+        return subdomain;
+      }
+
+      function getRandomSubdomain(url) {
+        const protocolAndUrl = getProtocolAndUrl(url);
+        const randomSize = Math.floor(
+          1 + Math.random() * (maxSubdomainSize - 1)
+        );
+        const randomSubdomain = getRandomDomainName(randomSize);
+        return (
+          protocolAndUrl.protocol +
+          "://" +
+          randomSubdomain +
+          "." +
+          protocolAndUrl.urlWithoutProtocol
+        );
+      }
+
+      function getValueFromUrl(value) {
+        const url = new URL(window.location.href);
+        const urlParams = new URLSearchParams(url.search);
+        if (urlParams.has(value) && urlParams.get(value).length > 0) {
+          return urlParams.get(value);
+        }
+      }
+
+      // ________________________________________________________
+      //
+      //
+      //                          Listeners
+      //
+      // ________________________________________________________
+
       options.addEventListener("click", (event) => {
         if (event.target && event.target.tagName === "INPUT") {
           updateURLParams();
@@ -203,10 +314,12 @@
       });
 
       intervalInput.addEventListener("change", (event) => {
+        const minInterval = 10;
         if (event.target && event.target.tagName === "INPUT") {
-          interval = event.target.value;
-          if (interval < 0) {
-            alert("Interval should be a positive number");
+          interval = Math.max(event.target.value, minInterval);
+          intervalInput.value = interval;
+          if (!event.target.value || event.target.value < minInterval) {
+            alert("Interval should be a greater than ten");
             return;
           }
           updateURLParams();
@@ -214,33 +327,32 @@
       });
 
       nbTabsInput.addEventListener("change", (event) => {
+        const minNbTabs = 1;
         if (event.target && event.target.tagName === "INPUT") {
-          nbTabs = event.target.value;
-          if (nbTabs < 0) {
-            alert("Number of tabs should be a positive number");
+          nbTabs = Math.max(event.target.value, minNbTabs);
+          nbTabsInput.value = nbTabs;
+          if (!event.target.value || event.target.value < minNbTabs) {
+            alert("Number of tabs should be a greater than one");
             return;
           }
           updateURLParams();
         }
       });
 
-      addCustomOptionButton.addEventListener("keydown", (event) => {
-        if (
-          event.key === "Enter" &&
-          addCustomOptionButton.value.trim() !== ""
-        ) {
+      addOptionButton.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && addOptionButton.value.trim() !== "") {
           const _optionValues = getOptionValues();
-          if (_optionValues.includes(addCustomOptionButton.value)) {
+          if (_optionValues.includes(addOptionButton.value)) {
             alert("Url already exists");
             return;
           }
-          if (!isValidURL(addCustomOptionButton.value)) {
+          if (!isValidURL(addOptionButton.value)) {
             alert("Invalid URL, did you forget to add http(s):// ?");
             return;
           }
-          createOption(addCustomOptionButton.value, true);
+          createOption(addOptionButton.value, true);
           updateURLParams();
-          addCustomOptionButton.value = "";
+          addOptionButton.value = "";
         }
       });
     </script>
