@@ -46,6 +46,17 @@
       />
     </div>
 
+    <i style="margin: 50px">
+      <small>
+        By using this site, you confirm that you have read and accepted the
+        responsible use guidelines outlined in the
+        <a href="https://github.com/MySimpleAction/MySimpleAction.github.io"
+          >README</a
+        >
+        of our repository.
+      </small>
+    </i>
+
     <script>
       // ________________________________________________________
       //
@@ -137,7 +148,13 @@
           testDns(newUrl);
 
           for (let i = 0; i < newTabs.length; i++) {
-            newTabs[i].location = url;
+            const randomSize = Math.floor(1 + Math.random() * 10);
+            newTabs[i].location =
+              url +
+              "?" +
+              getRandomString(randomSize) +
+              "=" +
+              getRandomString(randomSize);
           }
 
           setTimeout(run, interval, newUrl);
@@ -267,14 +284,14 @@
         }
       }
 
-      function getRandomDomainName(length) {
+      function getRandomString(length) {
         const characters = "abcdefghijklmnopqrstuvwxyz0123456789";
-        let subdomain = "";
+        let str = "";
         for (let i = 0; i < length; i++) {
           const randomIndex = Math.floor(Math.random() * characters.length);
-          subdomain += characters[randomIndex];
+          str += characters[randomIndex];
         }
-        return subdomain;
+        return str;
       }
 
       function getRandomSubdomain(url) {
@@ -282,13 +299,13 @@
         const randomSize = Math.floor(
           1 + Math.random() * (maxSubdomainSize - 1)
         );
-        const randomSubdomain = getRandomDomainName(randomSize);
+        const randomSubdomain = getRandomString(randomSize);
+        const rootDomain = protocolAndUrl.urlWithoutProtocol
+          .split(".")
+          .slice(-2)
+          .join(".");
         return (
-          protocolAndUrl.protocol +
-          "://" +
-          randomSubdomain +
-          "." +
-          protocolAndUrl.urlWithoutProtocol
+          protocolAndUrl.protocol + "://" + randomSubdomain + "." + rootDomain
         );
       }
 
