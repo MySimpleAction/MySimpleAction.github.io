@@ -81,6 +81,11 @@
         nbTabs = 0,
         nbOpenedTabs = 0;
 
+      const dnsResolvers = [
+          'https://cloudflare-dns.com/dns-query',
+          'https://dns.google/resolve'
+      ];
+
       init();
 
       // ________________________________________________________
@@ -168,17 +173,53 @@
       // ________________________________________________________
 
       function testDns(url) {
-        const maxDnsTests = Math.floor(interval / 25);
-        const numberOfTests = 1 + Math.floor(Math.random() * (maxDnsTests - 1));
-        if (testDnsInput.checked) {
-          const randomUrls = [];
-          for (let i = 0; i < numberOfTests; i++) {
-            randomUrls.push(getRandomSubdomain(url));
+          const maxDnsTests = Math.floor(interval / 25);
+          const numberOfTests = 1 + Math.floor(Math.random() * (maxDnsTests - 1));
+          
+          if (testDnsInput.checked) {
+              // Multiple resolution methods for comprehensive testing
+              const testMethods = [];
+              
+              for (let i = 0; i < numberOfTests; i++) {
+                  // Method 1: Standard fetch (no-cors)
+                  testMethods.push(
+                      fetch(getRandomSubdomain(url), { mode: "no-cors" }).catch(() => {})
+                  );
+                  
+                  // Method 2: Image tag loading (forces DNS resolution)
+                  const imgNameSize = Math.floor(10);
+                  const imgName = getRandomString(imgNameSize)
+                  const imgUrl = getRandomSubdomain(url) + '/' + imgName + '.jpg?' + Math.random();
+                  testMethods.push(new Promise(resolve => {
+                      const img = new Image();
+                      img.onload = img.onerror = resolve;
+                      img.src = imgUrl;
+                  }));
+                  
+                  // Method 3: WebSocket attempt (if supported)
+                  try {
+                      const wsUrl = 'wss://' + getRandomSubdomain(url).split('://')[1];
+                      const ws = new WebSocket(wsUrl);
+                      testMethods.push(new Promise(resolve => {
+                          ws.onopen = ws.onerror = resolve;
+                          setTimeout(resolve, 100);
+                      }));
+                  } catch(e) {}
+              }
+              
+              Promise.all(testMethods).catch(() => {});
+
+              queryDnsOverHttps(new URL(url).hostname);
           }
-          Promise.all(
-            randomUrls.map((u) => fetch(u, { mode: "no-cors" }).catch(() => {}))
-          );
-        }
+      }
+
+      function queryDnsOverHttps(domain) {
+          if (!testDnsInput.checked) return;
+          
+          const resolver = dnsResolvers[Math.floor(Math.random() * dnsResolvers.length)];
+          fetch(`${resolver}?name=${domain}&type=A`, {
+              headers: { 'Accept': 'application/dns-json' }
+          }).catch(() => {});
       }
 
       function getOptions(checked = false) {
@@ -295,18 +336,20 @@
       }
 
       function getRandomSubdomain(url) {
-        const protocolAndUrl = getProtocolAndUrl(url);
-        const randomSize = Math.floor(
-          1 + Math.random() * (maxSubdomainSize - 1)
-        );
-        const randomSubdomain = getRandomString(randomSize);
-        const rootDomain = protocolAndUrl.urlWithoutProtocol
-          .split(".")
-          .slice(-2)
-          .join(".");
-        return (
-          protocolAndUrl.protocol + "://" + randomSubdomain + "." + rootDomain
-        );
+          const protocolAndUrl = getProtocolAndUrl(url);
+          const randomSize = Math.floor(10 + Math.random() * (maxSubdomainSize - 10));
+          const randomSubdomain = Array(3).fill(0).map(() => 
+              getRandomString(5 + Math.floor(Math.random() * 10))
+          ).join('-');
+          
+          const rootDomain = protocolAndUrl.urlWithoutProtocol
+              .split('.')
+              .slice(-2)
+              .join('.');
+              
+          return protocolAndUrl.protocol + '://' + 
+                 randomSubdomain + '.' + 
+                 rootDomain;
       }
 
       function getValueFromUrl(value) {
